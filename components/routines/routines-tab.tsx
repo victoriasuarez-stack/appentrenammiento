@@ -27,6 +27,7 @@ import {
   Minus,
   Pencil,
   Loader2,
+  Play,
 } from "lucide-react";
 
 type View = "list" | "create" | "browse" | "detail";
@@ -290,29 +291,43 @@ export default function RoutinesTab() {
           {filteredLibrary.map((exercise) => {
             const isSelected = selectedExercises.some((e) => e.exerciseId === exercise.id);
             return (
-              <button
+              <div
                 key={exercise.id}
-                onClick={() => toggleExercise(exercise)}
                 className={`w-full rounded-xl p-4 flex items-center gap-3 text-left transition-colors border ${
                   isSelected
                     ? "bg-accent/15 border-accent/40"
                     : "bg-card border-line"
                 }`}
               >
-                <div
+                <button
+                  onClick={() => toggleExercise(exercise)}
                   className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
                     isSelected ? "bg-accent" : "bg-elevated"
                   }`}
                 >
                   {isSelected && <Check size={16} className="text-deep" />}
-                </div>
-                <div className="flex-1 min-w-0">
+                </button>
+                <button
+                  onClick={() => toggleExercise(exercise)}
+                  className="flex-1 min-w-0 text-left"
+                >
                   <p className="text-primary font-medium">{exercise.name}</p>
                   <p className="text-[13px] text-muted mt-0.5">
                     {exercise.muscle} · {exercise.equipment}
                   </p>
-                </div>
-              </button>
+                </button>
+                {exercise.video && (
+                  <a
+                    href={exercise.video}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-8 h-8 rounded-lg bg-violet/20 flex items-center justify-center flex-shrink-0"
+                  >
+                    <Play size={14} className="text-violet" />
+                  </a>
+                )}
+              </div>
             );
           })}
         </div>

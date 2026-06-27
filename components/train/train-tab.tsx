@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
+  Play,
 } from "lucide-react";
 
 interface SessionSet {
@@ -240,13 +241,26 @@ export default function TrainTab() {
 
                 {isExpanded && (
                   <div className="px-4 pb-4 space-y-2">
-                    {exercise?.cues && (
+                    {exercise?.video && (
+                      <a
+                        href={exercise.video}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 bg-violet/20 border border-violet/30 rounded-xl px-3 py-2.5 mb-2 active:scale-[0.98] transition-transform"
+                      >
+                        <Play size={16} className="text-violet flex-shrink-0" />
+                        <span className="text-[13px] text-violet font-medium">
+                          Ver video del ejercicio
+                        </span>
+                      </a>
+                    )}
+                    {exercise?.cues && exercise.cues.length > 0 && (
                       <div className="bg-elevated rounded-xl p-3 mb-2">
                         <p className="text-[12px] text-muted font-medium mb-1">
                           Tips
                         </p>
                         <ul className="text-[12px] text-secondary space-y-0.5">
-                          {exercise.cues.slice(0, 2).map((cue, i) => (
+                          {exercise.cues.map((cue, i) => (
                             <li key={i}>· {cue}</li>
                           ))}
                         </ul>
