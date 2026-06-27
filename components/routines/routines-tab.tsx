@@ -4,7 +4,10 @@ import { useState, useEffect } from "react";
 import {
   getRoutines,
   saveRoutine,
+  updateRoutine,
   deleteRoutine,
+  getCurrentWeight,
+  setCurrentWeight,
   type Routine,
   type RoutineExercise,
 } from "@/lib/storage";
@@ -22,9 +25,10 @@ import {
   Search,
   Check,
   Minus,
+  Pencil,
 } from "lucide-react";
 
-type View = "list" | "create" | "browse";
+type View = "list" | "create" | "browse" | "detail";
 
 export default function RoutinesTab() {
   const [view, setView] = useState<View>("list");
@@ -33,6 +37,8 @@ export default function RoutinesTab() {
   const [selectedExercises, setSelectedExercises] = useState<RoutineExercise[]>([]);
   const [muscleFilter, setMuscleFilter] = useState("Todos");
   const [search, setSearch] = useState("");
+  const [detailRoutine, setDetailRoutine] = useState<Routine | null>(null);
+  const [editingWeights, setEditingWeights] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setRoutines(getRoutines());
@@ -73,7 +79,12 @@ export default function RoutinesTab() {
 
   function handleSave() {
     if (!routineName.trim() || selectedExercises.length === 0) return;
-    saveRoutine({ name: routineName.trim(), exercises: selectedExercises });
+    if (detailRoutine) {
+      updateRoutine(detailRoutine.id, { name: routineName.trim(), exercises: selectedExercises });
+      setDetailRoutine(null);
+    } else {
+      saveRoutine({ name: routineName.trim(), exercises: selectedExercises });
+    }
     setRoutineName("");
     setSelectedExercises([]);
     refreshRoutines();
@@ -86,11 +97,137 @@ export default function RoutinesTab() {
     setView("create");
   }
 
+  function openDetail(routine: Routine) {
+    setDetailRoutine(routine);
+    const weights: Record<string, number> = {};
+    routine.exercises.forEach((re) => {
+      weights[re.exerciseId] = getCurrentWeight(re.exerciseId) || re.startingWeight;
+    });
+    setEditingWeights(weights);
+    setView("detail");
+  }
+
+  function saveWeights() {
+    if (!detailRoutine) return;
+    Object.entries(editingWeights).forEach(([exerciseId, weight]) => {
+      setCurrentWeight(exerciseId, weight);
+    });
+    setView("list");
+  }
+
+  function startEdit() {
+    if (!detailRoutine) return;
+    setRoutineName(detailRoutine.name);
+    setSelectedExercises([...detailRoutine.exercises]);
+    setView("create");
+  }
+
   const filteredLibrary = EXERCISE_LIBRARY.filter((e) => {
     const matchesMuscle = muscleFilter === "Todos" || e.muscle.toLowerCase().includes(muscleFilter.toLowerCase());
     const matchesSearch = !search || e.name.toLowerCase().includes(search.toLowerCase());
     return matchesMuscle && matchesSearch;
   });
+
+  // ── Routine detail ────────────────────────────────
+  if (view === "detail" && detailRoutine) {
+    return (
+      <div className="px-5 pt-14 pb-4">
+        <button
+          onClick={() => setView("list")}
+          className="flex items-center gap-1 text-accent mb-4"
+        >
+          <ChevronLeft size={20} />
+          <span>Volver</span>
+        </button>
+
+        <div className="flex items-start justify-between mb-6">
+          <h1 className="text-2xl font-bold text-primary">{detailRoutine.name}</h1>
+          <button
+            onClick={startEdit}
+            className="flex items-center gap-1 text-accent text-[15px] font-medium"
+          >
+            <Pencil size={16} />
+            Editar
+          </button>
+        </div>
+
+        <p className="text-secondary text-[15px] mb-5">
+          {detailRoutine.exercises.length} ejercicios · Ajustá el peso de cada uno
+        </p>
+
+        <div className="space-y-3 mb-6">
+          {detailRoutine.exercises.map((re) => {
+            const ex = getExerciseById(re.exerciseId);
+            if (!ex) return null;
+            const weight = editingWeights[re.exerciseId] ?? 0;
+            return (
+              <div key={re.exerciseId} className="bg-card border border-line rounded-xl p-4">
+                <div className="mb-3">
+                  <p className="text-primary font-medium">{ex.name}</p>
+                  <p className="text-[13px] text-muted">{ex.muscle} · {ex.equipment}</p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <p className="text-[12px] text-muted mb-1">Series × Reps</p>
+                    <p className="text-primary text-[16px]">
+                      {re.sets} × {re.repsMin}-{re.repsMax}
+                    </p>
+                  </div>
+
+                  <div className="flex-1">
+                    <p className="text-[12px] text-muted mb-1">Peso (kg)</p>
+                    <div className="flex items-center bg-elevated rounded-lg">
+                      <button
+                        onClick={() =>
+                          setEditingWeights({
+                            ...editingWeights,
+                            [re.exerciseId]: Math.max(0, weight - 2.5),
+                          })
+                        }
+                        className="p-2 text-muted"
+                      >
+                        <Minus size={16} />
+                      </button>
+                      <input
+                        type="number"
+                        value={weight}
+                        onChange={(e) =>
+                          setEditingWeights({
+                            ...editingWeights,
+                            [re.exerciseId]: Math.max(0, Number(e.target.value)),
+                          })
+                        }
+                        className="w-16 text-center bg-transparent text-accent text-[18px] font-bold"
+                      />
+                      <button
+                        onClick={() =>
+                          setEditingWeights({
+                            ...editingWeights,
+                            [re.exerciseId]: weight + 2.5,
+                          })
+                        }
+                        className="p-2 text-muted"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={saveWeights}
+          className="w-full btn-accent py-4 rounded-2xl text-[18px] font-bold"
+        >
+          Guardar pesos
+        </button>
+      </div>
+    );
+  }
 
   // ── Exercise browser ─────────────────────────────
   if (view === "browse") {
@@ -179,7 +316,9 @@ export default function RoutinesTab() {
           <span>Cancelar</span>
         </button>
 
-        <h1 className="text-2xl font-bold text-primary mb-6">Nueva rutina</h1>
+        <h1 className="text-2xl font-bold text-primary mb-6">
+          {detailRoutine ? "Editar rutina" : "Nueva rutina"}
+        </h1>
 
         <input
           type="text"
@@ -289,18 +428,19 @@ export default function RoutinesTab() {
         <>
           <div className="space-y-3 mb-6">
             {routines.map((routine) => (
-              <div
+              <button
                 key={routine.id}
-                className="bg-card rounded-2xl p-5 border border-line"
+                onClick={() => openDetail(routine)}
+                className="w-full bg-card rounded-2xl p-5 border border-line text-left active:scale-[0.98] transition-transform"
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="text-[18px] font-semibold text-primary">{routine.name}</h3>
-                  <button
-                    onClick={() => handleDelete(routine.id)}
+                  <span
+                    onClick={(e) => { e.stopPropagation(); handleDelete(routine.id); }}
                     className="text-muted p-1"
                   >
                     <Trash2 size={18} />
-                  </button>
+                  </span>
                 </div>
                 <p className="text-[14px] text-muted">
                   {routine.exercises.length} ejercicios
@@ -320,7 +460,7 @@ export default function RoutinesTab() {
                     </span>
                   )}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
           <button

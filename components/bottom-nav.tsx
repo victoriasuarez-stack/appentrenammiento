@@ -1,12 +1,13 @@
 "use client";
 
-import { Dumbbell, ListChecks, BarChart3, Settings } from "lucide-react";
+import { Dumbbell, ListChecks, BarChart3, Settings, Wind } from "lucide-react";
 
-export type TabKey = "train" | "routines" | "progress" | "settings";
+export type TabKey = "train" | "routines" | "breathe" | "progress" | "settings";
 
 const tabs: { key: TabKey; label: string; icon: typeof Dumbbell }[] = [
   { key: "train", label: "Entrenar", icon: Dumbbell },
   { key: "routines", label: "Rutinas", icon: ListChecks },
+  { key: "breathe", label: "Respirar", icon: Wind },
   { key: "progress", label: "Progreso", icon: BarChart3 },
   { key: "settings", label: "Ajustes", icon: Settings },
 ];
