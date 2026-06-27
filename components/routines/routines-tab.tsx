@@ -1,0 +1,370 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import {
+  getRoutines,
+  saveRoutine,
+  deleteRoutine,
+  type Routine,
+  type RoutineExercise,
+} from "@/lib/storage";
+import {
+  EXERCISE_LIBRARY,
+  MUSCLE_GROUPS,
+  getExerciseById,
+  type Exercise,
+} from "@/lib/exercises";
+import {
+  Plus,
+  X,
+  ChevronLeft,
+  Trash2,
+  Search,
+  Check,
+  Minus,
+} from "lucide-react";
+
+type View = "list" | "create" | "browse";
+
+export default function RoutinesTab() {
+  const [view, setView] = useState<View>("list");
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [routineName, setRoutineName] = useState("");
+  const [selectedExercises, setSelectedExercises] = useState<RoutineExercise[]>([]);
+  const [muscleFilter, setMuscleFilter] = useState("Todos");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    setRoutines(getRoutines());
+  }, []);
+
+  function refreshRoutines() {
+    setRoutines(getRoutines());
+  }
+
+  function handleDelete(id: string) {
+    deleteRoutine(id);
+    refreshRoutines();
+  }
+
+  function toggleExercise(exercise: Exercise) {
+    const exists = selectedExercises.find((e) => e.exerciseId === exercise.id);
+    if (exists) {
+      setSelectedExercises(selectedExercises.filter((e) => e.exerciseId !== exercise.id));
+    } else {
+      setSelectedExercises([
+        ...selectedExercises,
+        { exerciseId: exercise.id, sets: 3, repsMin: 8, repsMax: 12, startingWeight: 0 },
+      ]);
+    }
+  }
+
+  function updateExerciseField(
+    exerciseId: string,
+    field: keyof Omit<RoutineExercise, "exerciseId">,
+    value: number,
+  ) {
+    setSelectedExercises(
+      selectedExercises.map((e) =>
+        e.exerciseId === exerciseId ? { ...e, [field]: Math.max(0, value) } : e,
+      ),
+    );
+  }
+
+  function handleSave() {
+    if (!routineName.trim() || selectedExercises.length === 0) return;
+    saveRoutine({ name: routineName.trim(), exercises: selectedExercises });
+    setRoutineName("");
+    setSelectedExercises([]);
+    refreshRoutines();
+    setView("list");
+  }
+
+  function startCreate() {
+    setRoutineName("");
+    setSelectedExercises([]);
+    setView("create");
+  }
+
+  const filteredLibrary = EXERCISE_LIBRARY.filter((e) => {
+    const matchesMuscle = muscleFilter === "Todos" || e.muscle.toLowerCase().includes(muscleFilter.toLowerCase());
+    const matchesSearch = !search || e.name.toLowerCase().includes(search.toLowerCase());
+    return matchesMuscle && matchesSearch;
+  });
+
+  // ── Exercise browser ─────────────────────────────
+  if (view === "browse") {
+    return (
+      <div className="px-5 pt-14 pb-4">
+        <button
+          onClick={() => setView("create")}
+          className="flex items-center gap-1 text-accent mb-4"
+        >
+          <ChevronLeft size={20} />
+          <span>Volver</span>
+        </button>
+
+        <h1 className="text-2xl font-bold text-primary mb-5">Ejercicios</h1>
+
+        <div className="relative mb-4">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            placeholder="Buscar ejercicio..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-card border border-line rounded-xl pl-10 pr-4 py-3 text-primary placeholder:text-muted"
+          />
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-5 pb-1">
+          {MUSCLE_GROUPS.map((group) => (
+            <button
+              key={group}
+              onClick={() => setMuscleFilter(group)}
+              className={`px-3 py-1.5 rounded-full text-[14px] font-medium whitespace-nowrap transition-colors ${
+                muscleFilter === group
+                  ? "bg-accent text-deep"
+                  : "bg-elevated text-secondary"
+              }`}
+            >
+              {group}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          {filteredLibrary.map((exercise) => {
+            const isSelected = selectedExercises.some((e) => e.exerciseId === exercise.id);
+            return (
+              <button
+                key={exercise.id}
+                onClick={() => toggleExercise(exercise)}
+                className={`w-full rounded-xl p-4 flex items-center gap-3 text-left transition-colors border ${
+                  isSelected
+                    ? "bg-accent/15 border-accent/40"
+                    : "bg-card border-line"
+                }`}
+              >
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isSelected ? "bg-accent" : "bg-elevated"
+                  }`}
+                >
+                  {isSelected && <Check size={16} className="text-deep" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-primary font-medium">{exercise.name}</p>
+                  <p className="text-[13px] text-muted mt-0.5">
+                    {exercise.muscle} · {exercise.equipment}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Create routine ───────────────────────────────
+  if (view === "create") {
+    return (
+      <div className="px-5 pt-14 pb-4">
+        <button
+          onClick={() => setView("list")}
+          className="flex items-center gap-1 text-accent mb-4"
+        >
+          <ChevronLeft size={20} />
+          <span>Cancelar</span>
+        </button>
+
+        <h1 className="text-2xl font-bold text-primary mb-6">Nueva rutina</h1>
+
+        <input
+          type="text"
+          placeholder="Nombre de la rutina"
+          value={routineName}
+          onChange={(e) => setRoutineName(e.target.value)}
+          className="w-full bg-card border border-line rounded-xl px-4 py-3 text-primary placeholder:text-muted mb-6"
+        />
+
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[18px] font-semibold text-primary">
+            Ejercicios ({selectedExercises.length})
+          </h2>
+          <button
+            onClick={() => setView("browse")}
+            className="flex items-center gap-1 text-accent text-[15px] font-medium"
+          >
+            <Plus size={18} />
+            Agregar
+          </button>
+        </div>
+
+        {selectedExercises.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-muted">No hay ejercicios. Tocá &ldquo;Agregar&rdquo; para buscar.</p>
+          </div>
+        ) : (
+          <div className="space-y-3 mb-6">
+            {selectedExercises.map((re) => {
+              const ex = getExerciseById(re.exerciseId);
+              if (!ex) return null;
+              return (
+                <div key={re.exerciseId} className="bg-card border border-line rounded-xl p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-primary font-medium">{ex.name}</p>
+                      <p className="text-[13px] text-muted">{ex.muscle}</p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        setSelectedExercises(
+                          selectedExercises.filter((e) => e.exerciseId !== re.exerciseId),
+                        )
+                      }
+                      className="text-muted p-1"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <NumberField
+                      label="Series"
+                      value={re.sets}
+                      onChange={(v) => updateExerciseField(re.exerciseId, "sets", v)}
+                    />
+                    <NumberField
+                      label="Rep mín"
+                      value={re.repsMin}
+                      onChange={(v) => updateExerciseField(re.exerciseId, "repsMin", v)}
+                    />
+                    <NumberField
+                      label="Rep máx"
+                      value={re.repsMax}
+                      onChange={(v) => updateExerciseField(re.exerciseId, "repsMax", v)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <button
+          onClick={handleSave}
+          disabled={!routineName.trim() || selectedExercises.length === 0}
+          className="w-full btn-accent py-4 rounded-2xl text-[18px] font-bold disabled:opacity-40"
+        >
+          Guardar rutina
+        </button>
+      </div>
+    );
+  }
+
+  // ── Routine list ─────────────────────────────────
+  return (
+    <div className="px-5 pt-14 pb-4">
+      <h1 className="text-3xl font-bold text-primary mb-8">Rutinas</h1>
+
+      {routines.length === 0 ? (
+        <div className="text-center py-20">
+          <p className="text-xl font-semibold text-primary mb-2">
+            Creá tu primera rutina
+          </p>
+          <p className="text-secondary text-[16px] mb-6 max-w-[280px] mx-auto">
+            Armá una rutina personalizada eligiendo los ejercicios que quieras.
+          </p>
+          <button
+            onClick={startCreate}
+            className="btn-accent px-6 py-3 rounded-xl text-[16px] font-semibold inline-flex items-center gap-2"
+          >
+            <Plus size={20} />
+            Nueva rutina
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3 mb-6">
+            {routines.map((routine) => (
+              <div
+                key={routine.id}
+                className="bg-card rounded-2xl p-5 border border-line"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="text-[18px] font-semibold text-primary">{routine.name}</h3>
+                  <button
+                    onClick={() => handleDelete(routine.id)}
+                    className="text-muted p-1"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+                <p className="text-[14px] text-muted">
+                  {routine.exercises.length} ejercicios
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {routine.exercises.slice(0, 4).map((re) => {
+                    const ex = getExerciseById(re.exerciseId);
+                    return ex ? (
+                      <span key={re.exerciseId} className="text-[12px] text-secondary bg-elevated px-2 py-1 rounded-md">
+                        {ex.name}
+                      </span>
+                    ) : null;
+                  })}
+                  {routine.exercises.length > 4 && (
+                    <span className="text-[12px] text-muted bg-elevated px-2 py-1 rounded-md">
+                      +{routine.exercises.length - 4} más
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={startCreate}
+            className="w-full btn-accent py-4 rounded-2xl text-[18px] font-bold inline-flex items-center justify-center gap-2"
+          >
+            <Plus size={20} />
+            Nueva rutina
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <p className="text-[12px] text-muted mb-1">{label}</p>
+      <div className="flex items-center bg-elevated rounded-lg">
+        <button
+          onClick={() => onChange(value - 1)}
+          className="p-2 text-muted"
+        >
+          <Minus size={14} />
+        </button>
+        <span className="flex-1 text-center text-primary text-[16px] font-medium">
+          {value}
+        </span>
+        <button
+          onClick={() => onChange(value + 1)}
+          className="p-2 text-muted"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
