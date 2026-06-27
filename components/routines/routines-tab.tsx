@@ -178,9 +178,21 @@ export default function RoutinesTab() {
             const weight = editingWeights[re.exerciseId] ?? 0;
             return (
               <div key={re.exerciseId} className="bg-card border border-line rounded-xl p-4">
-                <div className="mb-3">
-                  <p className="text-primary font-medium">{ex.name}</p>
-                  <p className="text-[13px] text-muted">{ex.muscle} · {ex.equipment}</p>
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-primary font-medium">{ex.name}</p>
+                    <p className="text-[13px] text-muted">{ex.muscle} · {ex.equipment}</p>
+                  </div>
+                  {ex.video && (
+                    <a
+                      href={ex.video}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-8 h-8 rounded-lg bg-violet/20 flex items-center justify-center flex-shrink-0"
+                    >
+                      <Play size={14} className="text-violet" />
+                    </a>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4">
