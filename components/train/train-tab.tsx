@@ -1,15 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getRoutines, type Routine } from "@/lib/storage";
-import { Dumbbell, ChevronRight } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { useUser } from "@/contexts/user-context";
+import { fetchRoutines } from "@/lib/supabase-storage";
+import type { Routine } from "@/lib/storage";
+import { Dumbbell, ChevronRight, Loader2 } from "lucide-react";
 
 export default function TrainTab() {
+  const { userId } = useUser();
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+    const data = await fetchRoutines(userId);
+    setRoutines(data);
+    setLoading(false);
+  }, [userId]);
 
   useEffect(() => {
-    setRoutines(getRoutines());
-  }, []);
+    load();
+  }, [load]);
 
   const today = new Date();
   const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
@@ -24,7 +36,11 @@ export default function TrainTab() {
         Entrenar
       </h1>
 
-      {routines.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 size={32} className="text-accent animate-spin" />
+        </div>
+      ) : routines.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-20 h-20 rounded-full bg-elevated flex items-center justify-center mb-5">
             <Dumbbell size={36} className="text-muted" />

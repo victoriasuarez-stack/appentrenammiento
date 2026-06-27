@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useUser } from "@/contexts/user-context";
 import {
-  getRoutines,
-  saveRoutine,
-  updateRoutine,
-  deleteRoutine,
-  getCurrentWeight,
-  setCurrentWeight,
-  type Routine,
-  type RoutineExercise,
-} from "@/lib/storage";
+  fetchRoutines,
+  createRoutine,
+  editRoutine,
+  removeRoutine,
+  fetchCurrentWeights,
+  saveCurrentWeight,
+} from "@/lib/supabase-storage";
+import type { Routine, RoutineExercise } from "@/lib/storage";
 import {
   EXERCISE_LIBRARY,
   MUSCLE_GROUPS,
@@ -26,13 +26,17 @@ import {
   Check,
   Minus,
   Pencil,
+  Loader2,
 } from "lucide-react";
 
 type View = "list" | "create" | "browse" | "detail";
 
 export default function RoutinesTab() {
+  const { userId } = useUser();
   const [view, setView] = useState<View>("list");
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [routineName, setRoutineName] = useState("");
   const [selectedExercises, setSelectedExercises] = useState<RoutineExercise[]>([]);
   const [muscleFilter, setMuscleFilter] = useState("Todos");
@@ -40,17 +44,21 @@ export default function RoutinesTab() {
   const [detailRoutine, setDetailRoutine] = useState<Routine | null>(null);
   const [editingWeights, setEditingWeights] = useState<Record<string, number>>({});
 
+  const loadRoutines = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+    const data = await fetchRoutines(userId);
+    setRoutines(data);
+    setLoading(false);
+  }, [userId]);
+
   useEffect(() => {
-    setRoutines(getRoutines());
-  }, []);
+    loadRoutines();
+  }, [loadRoutines]);
 
-  function refreshRoutines() {
-    setRoutines(getRoutines());
-  }
-
-  function handleDelete(id: string) {
-    deleteRoutine(id);
-    refreshRoutines();
+  async function handleDelete(id: string) {
+    await removeRoutine(id);
+    loadRoutines();
   }
 
   function toggleExercise(exercise: Exercise) {
@@ -77,41 +85,48 @@ export default function RoutinesTab() {
     );
   }
 
-  function handleSave() {
-    if (!routineName.trim() || selectedExercises.length === 0) return;
+  async function handleSave() {
+    if (!routineName.trim() || selectedExercises.length === 0 || !userId) return;
+    setSaving(true);
     if (detailRoutine) {
-      updateRoutine(detailRoutine.id, { name: routineName.trim(), exercises: selectedExercises });
+      await editRoutine(detailRoutine.id, routineName.trim(), selectedExercises);
       setDetailRoutine(null);
     } else {
-      saveRoutine({ name: routineName.trim(), exercises: selectedExercises });
+      await createRoutine(userId, routineName.trim(), selectedExercises);
     }
     setRoutineName("");
     setSelectedExercises([]);
-    refreshRoutines();
+    await loadRoutines();
+    setSaving(false);
     setView("list");
   }
 
   function startCreate() {
     setRoutineName("");
     setSelectedExercises([]);
+    setDetailRoutine(null);
     setView("create");
   }
 
-  function openDetail(routine: Routine) {
+  async function openDetail(routine: Routine) {
+    if (!userId) return;
     setDetailRoutine(routine);
-    const weights: Record<string, number> = {};
+    const weights = await fetchCurrentWeights(userId);
+    const mapped: Record<string, number> = {};
     routine.exercises.forEach((re) => {
-      weights[re.exerciseId] = getCurrentWeight(re.exerciseId) || re.startingWeight;
+      mapped[re.exerciseId] = weights[re.exerciseId] || re.startingWeight;
     });
-    setEditingWeights(weights);
+    setEditingWeights(mapped);
     setView("detail");
   }
 
-  function saveWeights() {
-    if (!detailRoutine) return;
-    Object.entries(editingWeights).forEach(([exerciseId, weight]) => {
-      setCurrentWeight(exerciseId, weight);
-    });
+  async function saveWeights() {
+    if (!detailRoutine || !userId) return;
+    setSaving(true);
+    for (const [exerciseId, weight] of Object.entries(editingWeights)) {
+      await saveCurrentWeight(userId, exerciseId, weight);
+    }
+    setSaving(false);
     setView("list");
   }
 
@@ -221,9 +236,10 @@ export default function RoutinesTab() {
 
         <button
           onClick={saveWeights}
-          className="w-full btn-accent py-4 rounded-2xl text-[18px] font-bold"
+          disabled={saving}
+          className="w-full btn-accent py-4 rounded-2xl text-[18px] font-bold disabled:opacity-60"
         >
-          Guardar pesos
+          {saving ? "Guardando..." : "Guardar pesos"}
         </button>
       </div>
     );
@@ -304,12 +320,12 @@ export default function RoutinesTab() {
     );
   }
 
-  // ── Create routine ───────────────────────────────
+  // ── Create / edit routine ────────────────────────
   if (view === "create") {
     return (
       <div className="px-5 pt-14 pb-4">
         <button
-          onClick={() => setView("list")}
+          onClick={() => { setDetailRoutine(null); setView("list"); }}
           className="flex items-center gap-1 text-accent mb-4"
         >
           <ChevronLeft size={20} />
@@ -394,10 +410,10 @@ export default function RoutinesTab() {
 
         <button
           onClick={handleSave}
-          disabled={!routineName.trim() || selectedExercises.length === 0}
+          disabled={!routineName.trim() || selectedExercises.length === 0 || saving}
           className="w-full btn-accent py-4 rounded-2xl text-[18px] font-bold disabled:opacity-40"
         >
-          Guardar rutina
+          {saving ? "Guardando..." : "Guardar rutina"}
         </button>
       </div>
     );
@@ -408,7 +424,11 @@ export default function RoutinesTab() {
     <div className="px-5 pt-14 pb-4">
       <h1 className="text-3xl font-bold text-primary mb-8">Rutinas</h1>
 
-      {routines.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 size={32} className="text-accent animate-spin" />
+        </div>
+      ) : routines.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-xl font-semibold text-primary mb-2">
             Creá tu primera rutina

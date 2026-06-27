@@ -1,32 +1,43 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import {
-  getSettings,
-  saveSettings,
-  exportBackup,
-  importBackup,
-  type UserSettings,
-} from "@/lib/storage";
-import { Download, Upload, User, Sliders } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useUser } from "@/contexts/user-context";
+import { fetchSettings, updateSettings } from "@/lib/supabase-storage";
+import { exportBackup, importBackup } from "@/lib/storage";
+import type { UserSettings } from "@/lib/storage";
+import { Download, Upload, User, Sliders, Loader2 } from "lucide-react";
 
 export default function SettingsTab() {
+  const { userId } = useUser();
   const [settings, setSettings] = useState<UserSettings>({
     name: "",
     progressionPct: 2.5,
     minWeightJump: 2.5,
     fcMax: 150,
   });
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [importMsg, setImportMsg] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setSettings(getSettings());
-  }, []);
+  const load = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+    const data = await fetchSettings(userId);
+    setSettings(data);
+    setLoading(false);
+  }, [userId]);
 
-  function handleSave() {
-    saveSettings(settings);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleSave() {
+    if (!userId) return;
+    setSaving(true);
+    await updateSettings(userId, settings);
+    setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -53,18 +64,27 @@ export default function SettingsTab() {
     reader.onload = () => {
       const ok = importBackup(reader.result as string);
       setImportMsg(ok ? "Datos restaurados correctamente" : "Error al importar");
-      if (ok) setSettings(getSettings());
       setTimeout(() => setImportMsg(""), 3000);
     };
     reader.readAsText(file);
     e.target.value = "";
   }
 
+  if (loading) {
+    return (
+      <div className="px-5 pt-14 pb-4">
+        <h1 className="text-3xl font-bold text-primary mb-8">Ajustes</h1>
+        <div className="flex justify-center py-20">
+          <Loader2 size={32} className="text-accent animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-5 pt-14 pb-4">
       <h1 className="text-3xl font-bold text-primary mb-8">Ajustes</h1>
 
-      {/* Profile */}
       <section className="mb-8">
         <h2 className="text-[16px] font-semibold text-secondary mb-3 flex items-center gap-2">
           <User size={18} />
@@ -93,7 +113,6 @@ export default function SettingsTab() {
         </div>
       </section>
 
-      {/* Progression */}
       <section className="mb-8">
         <h2 className="text-[16px] font-semibold text-secondary mb-3 flex items-center gap-2">
           <Sliders size={18} />
@@ -133,12 +152,12 @@ export default function SettingsTab() {
 
       <button
         onClick={handleSave}
-        className="w-full btn-accent py-4 rounded-2xl text-[18px] font-bold mb-6"
+        disabled={saving}
+        className="w-full btn-accent py-4 rounded-2xl text-[18px] font-bold mb-6 disabled:opacity-60"
       >
-        {saved ? "Guardado ✓" : "Guardar cambios"}
+        {saved ? "Guardado" : saving ? "Guardando..." : "Guardar cambios"}
       </button>
 
-      {/* Backup */}
       <section>
         <h2 className="text-[16px] font-semibold text-secondary mb-3">
           Respaldo de datos
