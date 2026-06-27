@@ -57,8 +57,15 @@ export default function RoutinesTab() {
     loadRoutines();
   }, [loadRoutines]);
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   async function handleDelete(id: string) {
     await removeRoutine(id);
+    setConfirmDeleteId(null);
+    if (detailRoutine?.id === id) {
+      setDetailRoutine(null);
+      setView("list");
+    }
     loadRoutines();
   }
 
@@ -254,6 +261,40 @@ export default function RoutinesTab() {
         >
           {saving ? "Guardando..." : "Guardar pesos"}
         </button>
+
+        <button
+          onClick={() => setConfirmDeleteId(detailRoutine.id)}
+          className="w-full mt-3 py-3 rounded-2xl text-[16px] text-red-400 font-medium"
+        >
+          Eliminar rutina
+        </button>
+
+        {confirmDeleteId && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-6">
+            <div className="bg-card border border-line rounded-2xl p-6 max-w-sm w-full">
+              <h3 className="text-[18px] font-bold text-primary mb-2">
+                Eliminar rutina
+              </h3>
+              <p className="text-secondary text-[15px] mb-6">
+                ¿Seguro que querés eliminar esta rutina? No se puede deshacer.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="flex-1 bg-elevated border border-line rounded-xl py-3 text-primary font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleDelete(confirmDeleteId)}
+                  className="flex-1 bg-red-500/20 border border-red-500/40 rounded-xl py-3 text-red-400 font-medium"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -483,7 +524,7 @@ export default function RoutinesTab() {
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="text-[18px] font-semibold text-primary">{routine.name}</h3>
                   <span
-                    onClick={(e) => { e.stopPropagation(); handleDelete(routine.id); }}
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(routine.id); }}
                     className="text-muted p-1"
                   >
                     <Trash2 size={18} />
@@ -518,6 +559,33 @@ export default function RoutinesTab() {
             Nueva rutina
           </button>
         </>
+      )}
+
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-6">
+          <div className="bg-card border border-line rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="text-[18px] font-bold text-primary mb-2">
+              Eliminar rutina
+            </h3>
+            <p className="text-secondary text-[15px] mb-6">
+              ¿Seguro que querés eliminar esta rutina? No se puede deshacer.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 bg-elevated border border-line rounded-xl py-3 text-primary font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDeleteId)}
+                className="flex-1 bg-red-500/20 border border-red-500/40 rounded-xl py-3 text-red-400 font-medium"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
