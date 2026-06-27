@@ -194,6 +194,28 @@ export async function fetchSessions(userId: string) {
   return data || [];
 }
 
+export async function fetchSessionSets(sessionId: string) {
+  const { data } = await supabase
+    .from("session_sets")
+    .select("id, exercise_id, set_number, weight, reps, completed")
+    .eq("session_id", sessionId)
+    .order("set_number");
+
+  return data || [];
+}
+
+export async function updateSessionSet(
+  setId: string,
+  weight: number,
+  reps: number,
+  completed: boolean,
+): Promise<void> {
+  await supabase
+    .from("session_sets")
+    .update({ weight, reps, completed })
+    .eq("id", setId);
+}
+
 // ─── Records ────────────────────────────────────
 
 export async function fetchRecords(userId: string) {
